@@ -4,30 +4,27 @@ use strict;
 
 use Getopt::Std;
 use RFID::Alien::Reader;
+use RFID::Alien::Reader::Serial;
+use RFID::Alien::Reader::TCP;
+
+BEGIN {
+    # Try to load these; if they fail we'll detect it later.
+    # Doing it outside of a BEGIN block makes Win32::SerialPort spew
+    # errors.
+    eval 'use Win32::SerialPort';
+    eval 'use Device::SerialPort';
+}
 
 use constant TAG_TIMEOUT => 10;
 use constant CMD_TIMEOUT => 15;
-use constant POLL_TIME => 5;
+use constant POLL_TIME => 0;
 use constant DEFAULT_NAME => 'alien';
 
 our %opt;
-BEGIN {
-    getopts("h:c:l:n:a:d",\%opt)
-	or die "Usage: $0 [-cd]\n";
-    if ($opt{c} and $^O eq 'MSWin32')
-    {
-	eval '
-              use Win32::Serialport;
-              use RFID::Alien::Reader::Serial;
-        ';
-    }
-    elsif ($opt{h})
-    {
-	eval 'use RFID::Alien::Reader::TCP;';
-    }
-}
+getopts("h:c:l:n:a:p:d",\%opt)
+    or die "Usage: $0 [-cd]\n";
 
-our($debug, $name, @ant, $login, $password);
+our($debug, $name, @ant, $login, $password, $polltime);
 $debug=$opt{d}||$ENV{ALIEN_DEBUG};
 $name=$opt{n}||DEFAULT_NAME;
 if ($opt{a})
@@ -38,6 +35,7 @@ else
 {
     @ant = (0);
 }
+$polltime=defined($opt{p})?$opt{p}:POLL_TIME;
 
 if ($opt{l})
 {
@@ -78,8 +76,20 @@ for my $sig (grep { exists $SIG{$_} } qw(INT TERM BREAK HUP))
 
 if ($opt{c})
 {
-    $com = Win32::SerialPort->new($opt{c})
-	or die "Couldn't open COM port '$opt{c}': $^E\n";
+    if ($INC{'Win32/SerialPort.pm'})
+    {
+	$com = Win32::SerialPort->new($opt{c})
+	        or die "Couldn't open COM port '$opt{c}': $^E\n";
+    }
+    elsif ($INC{'Device/SerialPort.pm'})
+    {
+	$com = Device::SerialPort->new($opt{c})
+	        or die "Couldn't open COM device '$opt{c}'!\n";
+    }
+    else
+    {
+	die "Couldn't find either Win32::SerialPort or Device::SerialPort!\n";
+    }
     $reader = RFID::Alien::Reader::Serial->new(Port => $com,
 					       Debug => $debug,
 					       Timeout => CMD_TIMEOUT,
@@ -113,7 +123,7 @@ else
     die "Must specify -c comport or -h hostname:port\n";
 }
 
-my $ver = $reader->get('ReaderVersionString');
+my $ver = $reader->get('ReaderVersion');
 print "Reader version: $ver";
 
 $reader->set(PersistTime => 0) == 0
@@ -134,7 +144,9 @@ while(1)
 	if (@pp);
     foreach my $tag (@pp)
     {
-	print "ISEE alien.",$tag->id," FROM $name.",$tag->ant," AT $now TIMEOUT ",TAG_TIMEOUT,"\n";
+	my %ti = $tag->get('ID','Type','Antenna');
+	$ti{epc_type}||='none';
+	print "ISEE $ti{Type}.$ti{ID} FROM $name.$ti{Antenna} AT $now TIMEOUT ",TAG_TIMEOUT,"\n";
     }
-    sleep(POLL_TIME);
+    sleep($polltime);
 }

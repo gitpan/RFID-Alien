@@ -1,6 +1,7 @@
 package RFID::Alien::Reader::Test;
 use RFID::Alien::Reader; $VERSION=$RFID::Alien::Reader::VERSION;
-@ISA = qw(RFID::Alien::Reader);
+use RFID::Reader::TestBase;
+@ISA = qw(RFID::Reader::TestBase RFID::Alien::Reader);
 
 # Written by Scott Gifford <gifford@umich.edu>
 # Copyright (C) 2004 The Regents of the University of Michigan.
@@ -14,13 +15,13 @@ RFID::Alien::Reader::Test - A fake implementation of L<RFID::Alien::Reader|RFID:
 =head1 SYNOPSIS
 
 Provides fake backend methods to test out
-L<RFID::Alien::Reader|RFID::Alien::Reader> without having access
-to a real reader.
+L<RFID::Alien::Reader|RFID::Alien::Reader> without having access to a
+real reader.  It inherits from
+L<RFID::Reader::TestBase|RFID::Reader::TestBase>.
 
 =cut
 
 use Carp;
-
 our %initval = (time => '',
 		persisttime => '5',
 		acquiremode => 'Inventory',
@@ -38,19 +39,24 @@ sub new
     my $self = {};
     bless($self,$class);
 
-    $self->_init(%p);
+    # Initialize everything.
+    foreach my $parent (@ISA)
+    {
+	if (my $init = $parent->can('_init'))
+	{
+	    $init->($self,%p);
+	}
+    }
     $self->{_settings}={%initval};
-    $self->{_readbuf}='';
-    $self->{_writebuf}='';
     $self;
 }
 
-sub _writebytes
+sub _process_input
 {
     my $self = shift;
+    my($readbuf)=@_;
 
-    $self->{_readbuf} .= $_[0];
-    while ($self->{_readbuf} =~ s/^\x01?([^\r\n]*)\r?\n//)
+    while ($readbuf =~ s/^\x01?([^\r\n]*)\r?\n//)
     {
 	my ($cmd,$var,$rest) = split(' ',$1,3);
 	if (lc $cmd eq 'get')
@@ -59,20 +65,20 @@ sub _writebytes
 	    {
 		if ($self->{_settings}{antennasequence} =~ /\b0\b/)
 		{
-		    $self->{_writebuf} .= TAGLIST."\x0d\x0a\0";
+		    $self->_add_output(TAGLIST."\x0d\x0a\0");
 		}
 		else
 		{
-		    $self->{_writebuf} .= "(No Tags)\x0d\x0a\0";
+		    $self->_add_output("(No Tags)\x0d\x0a\0");
 		}
 	    }
 	    elsif (lc $var eq 'readerversion')
 	    {
-		$self->{_writebuf} .= $self->{_settings}{lc $var}."\x0d\x0a\0";
+		$self->_add_output($self->{_settings}{lc $var}."\x0d\x0a\0");
 	    }
 	    else
 	    {
-		$self->{_writebuf} .= "$var = $self->{_settings}{lc $var}\x0d\x0a\0";
+		$self->_add_output("$var = $self->{_settings}{lc $var}\x0d\x0a\0");
 	    }
 	}
 	elsif (lc $cmd eq 'set')
@@ -80,28 +86,16 @@ sub _writebytes
 	    $rest =~ s/^\s*=\s*//
 		or croak "Received invalid set command!";
 	    $self->{_settings}{lc $var}=$rest;
-	    $self->{_writebuf} .= "$var = $self->{_settings}{lc $var}\x0d\x0a\0";
+	    $self->_add_output("$var = $self->{_settings}{lc $var}\x0d\x0a\0");
 	}
     }
-    return length($_[0]);
-}
-
-sub _readuntil
-{
-    my $self = shift;
-
-    if ($self->{_writebuf} =~ s/^([^\0]*)\0//)
-    {
-	return $1;
-    }
-
-    croak "Attempt to read with no data!";
+    $readbuf;
 }
 
 =head1 SEE ALSO
 
 L<RFID::Alien::Reader>, L<RFID::Alien::Reader::Serial>,
-L<RFID::Alien::Reader::TCP>.
+L<RFID::Alien::Reader::TCP>, L<RFID::Reader::TestBase>.
 
 =head1 AUTHOR
 

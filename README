@@ -8,3 +8,8 @@ by implementing the host/reader communication protocol.
 
 See the perldoc for RFID::Alien::Reader for an overview, and the
 file alien.pl for some sample code.
+
+See the rfid-perl Web page for other information, and instructions for
+subscribing to the mailing list:
+
+    http://www.eecs.umich.edu/~wherefid/code/rfid-perl/

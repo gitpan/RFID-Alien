@@ -1,5 +1,6 @@
 package RFID::Alien::Reader;
-$VERSION = '0.001';
+$VERSION = '0.002';
+@ISA=qw(RFID::Reader);
 
 # Written by Scott Gifford <gifford@umich.edu>
 # Copyright (C) 2004 The Regents of the University of Michigan.
@@ -44,7 +45,8 @@ L<RFID::Alien::Reader::TCP|RFID::Alien::Reader::TCP>.  For example:
 This abstract base class implements the commands for communicating
 with an Alien reader.  It is written according to the specifications
 in the I<Alien Technology Reader Interface Guide v02.00.00>.  It was
-tested with the original tag reader and also the ALR-9780.
+tested with the original tag reader and also the ALR-9780.  It
+inherits from L<RFID::Reader|RFID::Reader>.
 
 To actually create a reader object, use
 L<RFID::Alien::Reader::Serial|RFID::Alien::Reader::Serial> or
@@ -56,8 +58,8 @@ inherit from this one.
 use Carp;
 use POSIX qw(strftime);
 use Time::Local;
-
-use RFID::Alien::Tag;
+use RFID::Reader;
+use RFID::EPC::Tag;
 
 # Internal initialization function, called by child objects
 sub _init
@@ -66,10 +68,12 @@ sub _init
     my(%p) = @_;
     my $greeting;
 
+    $self->SUPER::_init(%p);
+
     if (defined($p{Login}) and defined($p{Password}))
     {
 	# Log in
-	$self->_debug("Logging in\n");
+	$self->debug("Logging in\n");
 	my $s = $self->{_sock};
 	print $s $p{Login},"\r\n";
 	$self->_readuntil('Password>');
@@ -93,8 +97,6 @@ sub _init
 
 =head2 Methods
 
-The following methods are supported for all readers.
-
 =head3 set
 
 Set various properties of the reader or the internal state of the
@@ -106,7 +108,9 @@ so you can test for errors like this:
     my @errs = $alien->set(SomeVariable => "New Value") == 0
       or die "Couldn't set SomeVariable: @errs";
 
-See L<Properties|/Properties> for the properties that can be set.
+See L<Properties|/Properties> for the properties that can be set, and
+see L<the RFID::Reader set method|RFID::Reader/set> for more details
+about this method.
 
 =cut
 
@@ -118,11 +122,7 @@ sub set
 
     while (my($var,$val)=each(%p))
     {
-	if (lc $var eq 'debug')
-	{
-	    $self->{_debug}=$val;
-	}
-	elsif (lc $var eq 'timeout')
+	if (lc $var eq 'timeout')
 	{
 	    $self->{timeout}=$val;
 	}
@@ -137,10 +137,13 @@ sub set
 		    $mask .= "0";
 		}
 		$start ||= 0;
-		push(@errs,$self->_simpleset($var,
-					     sprintf("%d, %d, %s",
-						     $len, $start,
-						     join(' ',unpack("(a2)*", $mask)))));
+		push(@errs,
+		     $self->_simpleset($var,
+				       sprintf("%d, %d, %s",
+					       $len, $start,
+					       join(' ',
+						    unpack("a2" x (length($mask)/2), 
+							   $mask)))));
 	    }
 	    else
 	    {
@@ -181,11 +184,8 @@ sub set
 	}
 	else
 	{
-	    push(@errs,"Unknown setting '$var'\n");
+	    push(@errs,$self->SUPER::set($var,$val));
 	}
-	# Interesting values for $var:
-        #   antennaseqence
-        #   combineantenna
     }
     @errs;
 }
@@ -225,7 +225,8 @@ For example:
     my %props = $alien->get(qw(AcquireMode PersistTime ReaderVersion));
 
 See L<Properties|/Properties> for the properties that can be retreived
-with I<get>.
+with I<get>, and L<the RFID::Reader get method|RFID::Reader/get> for
+more information about this method.
 
 =cut
 
@@ -236,11 +237,7 @@ sub get
 
     foreach my $var (@_)
     {
-	if (lc $var eq 'debug')
-	{
-	    return $self->{_debug};
-	}
-	elsif (lc $var eq 'mask')
+	if (lc $var eq 'mask')
 	{
 	    my $mask = $self->_simpleget($var);
 	    if ($mask =~ /all tags/i)
@@ -290,37 +287,40 @@ sub get
 		$ret{$var} = [map { s/\*$//; $_ } split(/,\s*/,$antstr)];
 	    }
 	}
-	elsif (lc $var eq 'readerversionstring')
+	elsif (lc $var eq 'readerversion')
 	{
 	    my $val = $self->_command('get ReaderVersion');
 	    $ret{$var}=$val;
 	}
-	elsif (lc $var eq 'readerversion')
-	{
-	    my $val = $self->_command('get ReaderVersion');
-	    my $r = {};
-	    $r->{string} = $val;
-	    while ( $val =~ /([^:]+):\s*([^\x0d\s,]+),?\s*/sg )
-	    {
-		if ($1 eq 'Ent. SW Rev')
-		{
-		    $r->{software}=$2;
-		}
-		elsif ($1 eq 'Country Code')
-		{
-		    $r->{country_code}=$2;
-		}
-		elsif ($1 eq 'Reader Type')
-		{
-		    $r->{reader_type}=$2;
-		}
-		elsif ($1 eq 'Firmware Rev')
-		{
-		    $r->{firmware}=$2;
-		}
-	    }
-	    $ret{$var}=$r;
-	}
+
+# This parses the reader version.  It's currently disabled, but should
+# probably come back in some form.
+#	elsif (lc $var eq 'readerversion')
+#	{
+#	    my $val = $self->_command('get ReaderVersion');
+#	    my $r = {};
+#	    $r->{string} = $val;
+#	    while ( $val =~ /([^:]+):\s*([^\x0d\s,]+),?\s*/sg )
+#	    {
+#		if ($1 eq 'Ent. SW Rev')
+#		{
+#		    $r->{software}=$2;
+#		}
+#		elsif ($1 eq 'Country Code')
+#		{
+#		    $r->{country_code}=$2;
+#		}
+#		elsif ($1 eq 'Reader Type')
+#		{
+#		    $r->{reader_type}=$2;
+#		}
+#		elsif ($1 eq 'Firmware Rev')
+#		{
+#		    $r->{firmware}=$2;
+#		}
+#	    }
+#	    $ret{$var}=$r;
+#	}
  	elsif (grep { lc $var eq lc $_ } 
 	       (qw(AcquireMode PersistTime AcqCycles AcqEnterWakeCount
 		   AcqCount AcqSleepCount AcqExitWakeCount PersistTime
@@ -331,7 +331,7 @@ sub get
 	}
 	else
 	{
-	    return undef;
+	    %ret=(%ret, $self->SUPER::get($var));
 	}
     }
     if (wantarray)
@@ -363,8 +363,8 @@ sub _simpleget
 
 Read all of the tags in the reader's field, honoring the requested
 L<Mask|/Mask> and L<AntennaSequence|/AntennaSequence> settings.  This
-returns a (possibly empty) list of
-L<RFID::Alien::Tag|RFID::Alien::Tag> objects.  For example:
+returns a (possibly empty) list of L<RFID::Tag|RFID::Tag> objects.
+For example:
 
     my @tags = $reader->readtags();
     foreach my $tag (@tags)
@@ -379,6 +379,9 @@ before returning, so if you want to use the same parameters for many
 calls (say in a loop) you will probably want to set them just once
 with L<set|set>.
 
+See L<the RFID::Reader readtags method|RFID::Reader/readtags> for more
+information about this method.
+
 =cut
 
 sub readtags
@@ -391,7 +394,7 @@ sub readtags
 	$numreads = ' '.$p{Numreads};
 	delete $p{Numreads};
     }
-    $self->_pushoptions(%p)
+    $self->pushoptions(%p)
 	if (keys %p);
     
     my $taglist = $self->_command('get TagList'.$numreads);
@@ -408,16 +411,16 @@ sub readtags
 		{
 		    ($tp{id}=uc $2) =~ s/[^0-9A-f]//g;
 		}
-		else
+		elsif (lc $1 eq 'ant')
 		{
-		    $tp{lc $1}=$2;
+		    $tp{antenna}=$2;
 		}
 	    }
 	}
-	push(@tags,RFID::Alien::Tag->new(%tp));
+	push(@tags,RFID::EPC::Tag->new(%tp));
     }
     
-    $self->_popoptions()
+    $self->popoptions()
 	if (keys %p);
 
     return @tags;
@@ -451,12 +454,12 @@ sub sleeptags
 {
     my $self = shift;
 
-    $self->_pushoptions(@_)
+    $self->pushoptions(@_)
 	if (@_);
 
     $self->_command('Sleep');
 
-    $self->_popoptions(@_)
+    $self->popoptions(@_)
 	if (@_);
 
     1;
@@ -489,12 +492,12 @@ sub waketags
 {
     my $self = shift;
 
-    $self->_pushoptions(@_)
+    $self->pushoptions(@_)
 	if (@_);
 
     $self->_command('Wake');
 
-    $self->_popoptions(@_)
+    $self->popoptions(@_)
 	if (@_);
 }
 
@@ -523,45 +526,13 @@ sub finish
     1;
 }
 
-# Push the current values for various settings onto an internal stack,
-# then set them to their new values.  _popoptions will restore the
-# original values.
-sub _pushoptions
-{
-    my $self = shift;
-    my(%p)=@_;
-
-    my %prev;
-    while (my($k,$v)=each(%p))
-    {
-	# Get the option
-	my $curval = $self->get($k);
-	defined($curval)
-	    or croak "Couldn't get initial value of '$k'!\n";
-	$prev{lc $k} = $curval;
-    }
-    push(@{$self->{_option_stack}},\%prev);
-    $self->set(%p);
-}
-
-# Restore values set by _pushoptions.
-sub _popoptions
-{
-    my $self = shift;
-
-    my $prev = pop(@{$self->{_option_stack}})
-	or croak "No options to pop!!";
-    $self->set(%$prev);
-}
-
-
 # Send a command to the reader, and wait for a response.  The response
 # string is returned.
 sub _command
 {
     my $self = shift;
     my($cmd)=@_;
-    $self->_debug("sending cmd: '$cmd'\n");
+    $self->debug("sending cmd: '$cmd'\n");
     $self->_writebytes("\x01".$cmd."\x0d\x0a")
 	or die "Couldn't write: $^E";
     my $r = $self->_getresponse($com);
@@ -575,23 +546,8 @@ sub _getresponse
     my $self = shift;
     
     my $resp = $self->_readuntil("\0");
-    $self->_debug(" got resp: '$resp'\n");
+    $self->debug(" got resp: '$resp'\n");
     return $resp;
-}
-
-# For debugging
-sub hexdump
-{
-    my @a = split(//,$_[0]);
-    sprintf "%02x " x scalar(@a),map { ord } @a;
-}
-
-# Internal debugging function.
-sub _debug
-{
-    my $self = shift;
-    warn((caller(1))[3],": ",@_)
-	if ($self->{_debug});
 }
 
 =head2 Properties
@@ -601,9 +557,8 @@ and L<set|set> methods.  Some of these settings will cause one or more
 commands to be sent to the reader, while other will simply return the
 internal state of the object.  The value for a property is often a
 string, but can also be an arrayref or hashref.  These properties try
-to hide the internals of the Alien reader and hope one day to be
-compatible with multiple readers, and so their syntax doesn't always
-exactly match that of the actual Alien command.
+to hide the internals of the Alien reader, and so their syntax doesn't
+always exactly match that of the actual Alien command.
 
 =head3 AcqCycles, AcqEnterWakeCount, AcqCount, AcqSleepCount, AcqExitWakeCount
 
@@ -660,25 +615,23 @@ Controls how long the reader will remember a tag after seeing it.  If
 the reader has seen a tag within this time period when you use
 L<readtags|readtags>, it will be returned even if it is no longer in
 view of the reader.  You can set it to a number of seconds to remember
-a tag, to I<0> to not remember tags, or to I<-1> to remember tags
+a tag, to C<0> to not remember tags, or to C<-1> to remember tags
 until the L<readtags|readtags> method is executed.  The default is
-I<-1>.
+C<-1>.
 
 See the Alien documentation for more information.
 
 =head3 TagListAntennaCombine
 
-If this is set to I<ON>, a tag seen by multiple antennas will only
-return one tag list entry.  
+If this is set to C<ON>, a tag seen by multiple antennas will only
+return one tag list entry.
 
 See the Alien documentation for more information.
 
 =head3 Time
 
 The current time on the reader unit.  All tag responses are
-timestamped, although that information isn't currently exposed via the
-L<RFID::Alien::Tag|RFID::Alien::Tag> object, so setting the time may
-be useful.
+timestamped, so setting the time may be useful.
 
 The time is represented as Unix epoch time---that is, the number of
 seconds since midnight on January 1 1970 in GMT.  You can either set
@@ -693,50 +646,17 @@ addressed in the future.
 =head3 Timeout
 
 Request that requests to the reader that do not complete in the given
-number of seconds cause a C<die> to happen.  This is currently only
-fully respected by the
-L<RFID::Alien::Reader::Serial|RFID::Alien::Reader::Serial> object;
-support may be added to other objects in the future.
+number of seconds cause a C<die> to happen.
 
 =head3 ReaderVersion
 
-Cannot be set.  Returns a hashref containing information about the
-reader.  This information is parsed from the
-L<ReaderVersionString|/ReaderVersionString> setting.  That hashref will
-have whatever of the following information it can find.
-
-=over 4
-
-=item country_code
-
-Country code for this reader.
-
-=item firmware
-
-Firmware revision running on this reader.
-
-=item reader_type
-
-Type of this reader.
-
-=item software
-
-Software version running on this reader.
-
-=item string
-
-The full version string returned by the reader.
-
-=back
-
-=head3 ReaderVersionString
-
-Cannot be set.  Returns the version string reported by the reader.  To
-have this parsed for you a bit, try L<ReaderVersion|/ReaderVersion>.
+Cannot be set.  Returns a string containing information about the
+reader.
 
 =head1 SEE ALSO
 
-L<RFID::Alien::Reader::Serial>, L<RFID::Alien::Reader::TCP>, L<RFID::Alien::Tag>.
+L<RFID::Alien::Reader::Serial>, L<RFID::Alien::Reader::TCP>,
+L<RFID::Reader>, L<RFID::EPC::Tag>, L<http://www.eecs.umich.edu/~wherefid/code/rfid-perl/>.
 
 =head1 AUTHOR
 
