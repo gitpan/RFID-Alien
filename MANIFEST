@@ -1,0 +1,17 @@
+.cvsignore
+alien.pl
+lib/RFID/Alien/Reader.pm
+lib/RFID/Alien/Reader/Serial.pm
+lib/RFID/Alien/Reader/TCP.pm
+lib/RFID/Alien/Reader/Test.pm
+lib/RFID/Alien/Tag.pm
+LICENSE
+Makefile.PL
+MANIFEST			This list of files
+MANIFEST.SKIP
+META.yml
+README
+CHANGES
+TODO
+t/01compile.t
+t/02mock.t

@@ -1,0 +1,5 @@
+* Turn alien.pl into a simple tool for testing and using the Alien
+  hardware.
+
+* Create a consistent interface for Alien and other EPC readers, and
+  abstract out common functionality into a common base class.
