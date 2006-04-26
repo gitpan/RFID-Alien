@@ -4,7 +4,7 @@ use RFID::Reader::TestBase;
 @ISA = qw(RFID::Reader::TestBase RFID::Alien::Reader);
 
 # Written by Scott Gifford <gifford@umich.edu>
-# Copyright (C) 2004 The Regents of the University of Michigan.
+# Copyright (C) 2004-2006 The Regents of the University of Michigan.
 # See the file LICENSE included with the distribution for license
 # information.
 
@@ -101,7 +101,7 @@ L<RFID::Alien::Reader::TCP>, L<RFID::Reader::TestBase>.
 
 Scott Gifford E<lt>gifford@umich.eduE<gt>, E<lt>sgifford@suspectclass.comE<gt>
 
-Copyright (C) 2004 The Regents of the University of Michigan.
+Copyright (C) 2004-2006 The Regents of the University of Michigan.
 
 See the file LICENSE included with the distribution for license
 information.

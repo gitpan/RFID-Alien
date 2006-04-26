@@ -1,5 +1,5 @@
 # Written by Scott Gifford <gifford@umich.edu>
-# Copyright (C) 2004 The Regents of the University of Michigan.
+# Copyright (C) 2004-2006 The Regents of the University of Michigan.
 # See the file LICENSE included with the distribution for license
 # information.
 
@@ -12,4 +12,4 @@ file alien.pl for some sample code.
 See the rfid-perl Web page for other information, and instructions for
 subscribing to the mailing list:
 
-    http://www.eecs.umich.edu/~wherefid/code/rfid-perl/
+    http://whereabouts.eecs.umich.edu/code/rfid-perl/

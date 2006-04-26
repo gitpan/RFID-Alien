@@ -4,7 +4,7 @@ use RFID::Reader::Serial;
 @ISA = qw(RFID::Reader::Serial RFID::Alien::Reader);
 
 # Written by Scott Gifford <gifford@umich.edu>
-# Copyright (C) 2004 The Regents of the University of Michigan.
+# Copyright (C) 2004-2006 The Regents of the University of Michigan.
 # See the file LICENSE included with the distribution for license
 # information.
 
@@ -54,8 +54,7 @@ use constant DATABITS => 8;
 use constant STOPBITS => 1;
 use constant PARITY => 'none';
 use constant HANDSHAKE => 'none';
-use constant DEFAULT_TIMEOUT => 2000; #ms
-use constant STREAMLINE_TIMEOUT => 50; #ms
+use constant DEFAULT_TIMEOUT => 30; # seconds
 
 =head2 Constructor
 
@@ -90,7 +89,7 @@ sub new
     bless $self,$class;
     
     # Initialize everything.
-    foreach my $parent (@ISA)
+    foreach my $parent (__PACKAGE__,@ISA)
     {
 	if (my $init = $parent->can('_init'))
 	{
@@ -117,13 +116,13 @@ sub new
 =head1 SEE ALSO
 
 L<RFID::Alien::Reader>, L<RFID::Reader::Serial>,
-L<RFID::Alien::Reader::TCP>, L<http://www.eecs.umich.edu/~wherefid/code/rfid-perl/>.
+L<RFID::Alien::Reader::TCP>, L<http://whereabouts.eecs.umich.edu/code/rfid-perl/>.
 
 =head1 AUTHOR
 
 Scott Gifford E<lt>gifford@umich.eduE<gt>, E<lt>sgifford@suspectclass.comE<gt>
 
-Copyright (C) 2004 The Regents of the University of Michigan.
+Copyright (C) 2004-2006 The Regents of the University of Michigan.
 
 See the file LICENSE included with the distribution for license
 information.

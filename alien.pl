@@ -7,6 +7,23 @@ use RFID::Alien::Reader;
 use RFID::Alien::Reader::Serial;
 use RFID::Alien::Reader::TCP;
 
+sub usage
+{
+  die <<EOF;
+@{_}Usage: $0 (-h host[:port] OR -c comport) [-l loginfile] [-n name] [-a ant1[,ant2[,ant3[,ant4]]]] [-p polltime] [-d] [-r] [-q]
+    -h: Host or host:port to connect to via TCP
+    -c: COM port (COM1 on Windows, /dev/ttyS0 on Linux, etc.)
+    -l: File containing username on first line and password on second
+    -n: Name to be reported in output messages (default "alien")
+    -a: Comma-seperated list of antennas to use, numbered from 0
+    -p: Poll time (sleep between scans)
+    -d: Debug output
+    -r: Restart if anything goes wrong
+    -q: Quiet mode; only output tag sightings.
+EOF
+  ;
+}
+
 BEGIN {
     # Try to load these; if they fail we'll detect it later.
     # Doing it outside of a BEGIN block makes Win32::SerialPort spew
@@ -21,7 +38,7 @@ use constant POLL_TIME => 0;
 use constant DEFAULT_NAME => 'alien';
 
 our %opt;
-getopts("h:c:l:n:a:p:d",\%opt)
+getopts("h:c:l:n:a:p:drq",\%opt)
     or die "Usage: $0 [-cd]\n";
 
 our($debug, $name, @ant, $login, $password, $polltime);
@@ -58,13 +75,13 @@ END {
     }
     if ($reader)
     {
-	$reader->finish()
-	    or warn "Couldn't stop constant read: $!\n";
+        $reader->finish()
+	  or $opt{q} or warn "Couldn't stop constant read: $!\n";
     }
     if ($com)
     {
 	$com->close()
-	    or warn "Couldn't close COM port: $!\n";
+	  or $opt{q} or warn "Couldn't close COM port: $!\n";
     }
 }
 
@@ -74,79 +91,84 @@ for my $sig (grep { exists $SIG{$_} } qw(INT TERM BREAK HUP))
     $SIG{$sig} = sub { exit(1); };
 }
 
-if ($opt{c})
+unless ($opt{c} || $opt{h})
 {
-    if ($INC{'Win32/SerialPort.pm'})
-    {
-	$com = Win32::SerialPort->new($opt{c})
-	        or die "Couldn't open COM port '$opt{c}': $^E\n";
-    }
-    elsif ($INC{'Device/SerialPort.pm'})
-    {
-	$com = Device::SerialPort->new($opt{c})
-	        or die "Couldn't open COM device '$opt{c}'!\n";
-    }
-    else
-    {
-	die "Couldn't find either Win32::SerialPort or Device::SerialPort!\n";
-    }
-    $reader = RFID::Alien::Reader::Serial->new(Port => $com,
-					       Debug => $debug,
-					       Timeout => CMD_TIMEOUT,
-					       )
-	or die "Couldn't create RFID reader object: $!\n";
+  usage("Must specify -c comport or -h hostname:port\n");
 }
-elsif ($opt{h})
-{
-    my($addr,$port);
-    if ($opt{h} =~ /^([\w.-]+):(\d+)$/)
-    {
+
+do {
+  eval {
+  
+    if ($opt{c}) {
+      if ($INC{'Win32/SerialPort.pm'}) {
+	$com = Win32::SerialPort->new($opt{c})
+	  or die "Couldn't open COM port '$opt{c}': $^E\n";
+      } elsif ($INC{'Device/SerialPort.pm'}) {
+	$com = Device::SerialPort->new($opt{c})
+	  or die "Couldn't open COM device '$opt{c}'!\n";
+      } else {
+	die "Couldn't find either Win32::SerialPort or Device::SerialPort!\n";
+      }
+      $reader = RFID::Alien::Reader::Serial->new(Port => $com,
+						 Debug => $debug,
+						 Timeout => CMD_TIMEOUT,
+						)
+	or die "Couldn't create RFID reader object: $!\n";
+    } elsif ($opt{h}) {
+      my($addr,$port);
+      if ($opt{h} =~ /^([\w.-]+):(\d+)$/) {
 	($addr,$port)=($1,$2);
-    }
-    else
-    {
+      } else {
 	$addr = $opt{h};
 	$port = 4001;
-    }
+      }
     
-    $reader = RFID::Alien::Reader::TCP->new(PeerAddr => $addr,
-					    PeerPort => $port,
-					    Debug => $debug,
-					    Timeout => CMD_TIMEOUT,
-					    Login => $login,
-					    Password => $password,
-					    )
+      $reader = RFID::Alien::Reader::TCP->new(PeerAddr => $addr,
+					      PeerPort => $port,
+					      Debug => $debug,
+					      Timeout => CMD_TIMEOUT,
+					      Login => $login,
+					      Password => $password,
+					     )
 	or die "Couldn't create RFID reader object: $!\n";
-}
-else
-{
-    die "Must specify -c comport or -h hostname:port\n";
-}
+    } else {
+      # Should never happen
+      die "Must specify -c comport or -h hostname:port\n";
+    }
 
-my $ver = $reader->get('ReaderVersion');
-print "Reader version: $ver";
+    my $ver = $reader->get('ReaderVersion');
+    print "Reader version: $ver"
+      unless ($opt{q});
 
-$reader->set(PersistTime => 0) == 0
-    or die "Couldn't set PersistTime to 0!\n";
-$reader->set(AcquireMode => 'Inventory') == 0
-    or die "Couldn't set AcquireMode to Global Scroll!\n";
-$reader->set(AntennaSequence => \@ant) == 0
-    or die "Couldn't set antenna sequence!\n";
-$reader->set(TagListAntennaCombine => 'OFF') == 0
-    or die "Couldn't set TagListAntennaCombine!\n";
+    $reader->set(PersistTime => 0) == 0
+      or die "Couldn't set PersistTime to 0!\n";
+    $reader->set(AcquireMode => 'Inventory') == 0
+      or die "Couldn't set AcquireMode to Global Scroll!\n";
+    $reader->set(AntennaSequence => \@ant) == 0
+      or die "Couldn't set antenna sequence!\n";
+    $reader->set(TagListAntennaCombine => 'OFF') == 0
+      or die "Couldn't set TagListAntennaCombine!\n";
 
-# Now start polling
-while(1)
-{
-    print "Scanning for tags\n";
-    my @pp = $reader->readtags();
-    my $now = time
+    # Now start polling
+    while (1) {
+      print "Scanning for tags\n"
+	unless ($opt{q});
+      my @pp = $reader->readtags();
+      my $now = time
 	if (@pp);
-    foreach my $tag (@pp)
-    {
+      foreach my $tag (@pp) {
 	my %ti = $tag->get('ID','Type','Antenna');
 	$ti{epc_type}||='none';
 	print "ISEE $ti{Type}.$ti{ID} FROM $name.$ti{Antenna} AT $now TIMEOUT ",TAG_TIMEOUT,"\n";
+      }
+      sleep($polltime);
     }
-    sleep($polltime);
-}
+  };
+  if ($@) {
+    !$opt{q}
+        and warn "Communications problem: $@\n";
+  }
+  $opt{r}
+      and warn "Restarting...\n";
+} while ($opt{r}); # auto-restart
+

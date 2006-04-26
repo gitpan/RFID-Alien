@@ -1,9 +1,9 @@
 package RFID::Alien::Reader;
-$VERSION = '0.002';
+$VERSION = '0.003';
 @ISA=qw(RFID::Reader);
 
 # Written by Scott Gifford <gifford@umich.edu>
-# Copyright (C) 2004 The Regents of the University of Michigan.
+# Copyright (C) 2004-2006 The Regents of the University of Michigan.
 # See the file LICENSE included with the distribution for license
 # information.
 
@@ -178,6 +178,7 @@ sub set
 	       (qw(AcquireMode PersistTime AcqCycles AcqEnterWakeCount
 		   AcqCount AcqSleepCount AcqExitWakeCount PersistTime
 		   TagListAntennaCombine
+		   AcquireSleep AcquireWakeCount
 		   )))
 	{
 	    push(@errs,$self->_simpleset($var,$val));
@@ -413,11 +414,18 @@ sub readtags
 		}
 		elsif (lc $1 eq 'ant')
 		{
-		    $tp{antenna}=$2;
+		  $tp{antenna} = $2;
+		}
+		else
+		{
+		    $tp{lc $1}=$2;
 		}
 	    }
 	}
-	push(@tags,RFID::EPC::Tag->new(%tp));
+	my $tag = RFID::EPC::Tag->new(%tp);
+	# hack
+	$tag->{count} = $tp{count};
+	push(@tags,$tag);
     }
     
     $self->popoptions()
@@ -656,13 +664,13 @@ reader.
 =head1 SEE ALSO
 
 L<RFID::Alien::Reader::Serial>, L<RFID::Alien::Reader::TCP>,
-L<RFID::Reader>, L<RFID::EPC::Tag>, L<http://www.eecs.umich.edu/~wherefid/code/rfid-perl/>.
+L<RFID::Reader>, L<RFID::EPC::Tag>, L<http://whereabouts.eecs.umich.edu/code/rfid-perl/>.
 
 =head1 AUTHOR
 
 Scott Gifford E<lt>gifford@umich.eduE<gt>, E<lt>sgifford@suspectclass.comE<gt>
 
-Copyright (C) 2004 The Regents of the University of Michigan.
+Copyright (C) 2004-2006 The Regents of the University of Michigan.
 
 See the file LICENSE included with the distribution for license
 information.

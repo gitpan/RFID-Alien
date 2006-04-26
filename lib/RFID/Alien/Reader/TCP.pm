@@ -3,7 +3,7 @@ use RFID::Alien::Reader; $VERSION=$RFID::Alien::Reader::VERSION;
 @ISA = qw(RFID::Alien::Reader RFID::Reader::TCP);
 
 # Written by Scott Gifford <gifford@umich.edu>
-# Copyright (C) 2004 The Regents of the University of Michigan.
+# Copyright (C) 2004-2006 The Regents of the University of Michigan.
 # See the file LICENSE included with the distribution for license
 # information.
 
@@ -48,13 +48,13 @@ L<set|RFID::Alien::Reader/set> method.
 =head1 SEE ALSO
 
 L<RFID::Alien::Reader>, L<RFID::Reader::TCP>,
-L<RFID::Alien::Reader::Serial>, L<http://www.eecs.umich.edu/~wherefid/code/rfid-perl/>.
+L<RFID::Alien::Reader::Serial>, L<http://whereabouts.eecs.umich.edu/code/rfid-perl/>.
 
 =head1 AUTHOR
 
 Scott Gifford E<lt>gifford@umich.eduE<gt>, E<lt>sgifford@suspectclass.comE<gt>
 
-Copyright (C) 2004 The Regents of the University of Michigan.
+Copyright (C) 2004-2006 The Regents of the University of Michigan.
 
 See the file LICENSE included with the distribution for license
 information.
